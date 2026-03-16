@@ -5,6 +5,7 @@ namespace Core;
 
 public sealed class ExplicitHeatSolver
 {
+    //Условие устойчивости
     public static double GetStableDtMax(double alpha, double h)
     {
         if (alpha <= 0) throw new ArgumentOutOfRangeException(nameof(alpha));
@@ -12,9 +13,21 @@ public sealed class ExplicitHeatSolver
         return (h * h) / (4.0 * alpha);
     }
 
+    /// <summary>
+    /// Запуск последовательного алгоритма
+    /// </summary>
+    /// <param name="cfg">Входные данные</param>
+    /// <returns></returns>
     public SimulationResult RunSequential(SimulationConfig cfg) =>
         Run(cfg, parallel: false, maxDegree: 1, out _);
 
+    /// <summary>
+    /// Запуск параллельного алгоритма
+    /// </summary>
+    /// <param name="cfg">Входные данные</param>
+    /// <param name="maxDegreeOfParallelism">Количество потоков</param>
+    /// <param name="usedThreads"></param>
+    /// <returns></returns>
     public SimulationResult RunParallel(SimulationConfig cfg, int maxDegreeOfParallelism, out int usedThreads) =>
         Run(cfg, parallel: true, maxDegree: maxDegreeOfParallelism, out usedThreads);
 
@@ -88,6 +101,10 @@ public sealed class ExplicitHeatSolver
         return new SimulationResult(nx, ny, cfg.H, cfg.Dt, steps, cur);
     }
 
+    /// <summary>
+    /// Валидация входных данных
+    /// </summary>
+    /// <param name="cfg">Входные данные</param>
     private static void Validate(SimulationConfig cfg)
     {
         if (cfg.H <= 0) throw new ArgumentOutOfRangeException(nameof(cfg.H));
@@ -134,6 +151,7 @@ public sealed class ExplicitHeatSolver
         }
     }
 
+    // Граничные условия
     private static void ApplyBoundaries(double[] a, int nx, int ny, SimulationConfig cfg)
     {
         ApplyLeft(a, nx, ny, cfg.G1_Left, cfg.H);
