@@ -1,4 +1,4 @@
-using Core;
+﻿using Core;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 
@@ -8,6 +8,13 @@ namespace WebAPI;
 [ApiController]
 public class RunController : ControllerBase
 {
+    private readonly ILogger<RunController> _logger;
+
+    public RunController(ILogger<RunController> logger)
+    {
+        _logger = logger;
+    }
+
     [HttpGet("last-png")]
     [Produces("image/png")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -17,6 +24,7 @@ public class RunController : ControllerBase
         string outputDirectory = GetHeatmapsDirectory();
         if (!Directory.Exists(outputDirectory))
         {
+            _logger.LogWarning("Requested last PNG, but heatmaps directory {HeatmapsDirectory} does not exist.", outputDirectory);
             return NotFound(new { error = "Heatmaps directory was not found." });
         }
 
@@ -27,10 +35,12 @@ public class RunController : ControllerBase
 
         if (lastFile is null)
         {
+            _logger.LogWarning("Requested last PNG, but no generated PNG files were found in {HeatmapsDirectory}.", outputDirectory);
             return NotFound(new { error = "No generated PNG files were found." });
         }
 
         byte[] pngBytes = System.IO.File.ReadAllBytes(lastFile);
+        _logger.LogInformation("Returning PNG {FileName} with size {SizeBytes} bytes.", Path.GetFileName(lastFile), pngBytes.Length);
         return File(pngBytes, "image/png", Path.GetFileName(lastFile));
     }
 
@@ -39,6 +49,18 @@ public class RunController : ControllerBase
     {
         var solver = new ExplicitHeatSolver();
         SimulationConfig config = BuildSimulationConfig(request);
+
+        _logger.LogInformation(
+            "Starting run: mode={Mode}, width={Width}, height={Height}, h={H}, dt={Dt}, totalTime={TotalTime}, alpha={Alpha}, initialPoints={InitialPoints}, maxDegree={MaxDegreeOfParallelism}",
+            request.RunInParallel ? "parallel" : "sequential",
+            request.Width,
+            request.Height,
+            request.H,
+            request.Dt,
+            request.TotalTime,
+            request.Alpha,
+            request.InitialPoints.Count,
+            request.MaxDegreeOfParallelism);
 
         try
         {
@@ -66,6 +88,16 @@ public class RunController : ControllerBase
 
             PngWriter.SaveHeatmapPng(outputPath, result.FinalField, result.Nx, result.Ny);
 
+            _logger.LogInformation(
+                "Run completed: mode={Mode}, grid={Nx}x{Ny}, steps={Steps}, usedThreads={UsedThreads}, elapsedMs={ElapsedMilliseconds:0.000}, png={OutputPath}",
+                request.RunInParallel ? "parallel" : "sequential",
+                result.Nx,
+                result.Ny,
+                result.Steps,
+                usedThreads,
+                stopwatch.Elapsed.TotalMilliseconds,
+                outputPath);
+
             return Ok(new RunResponse
             {
                 Nx = result.Nx,
@@ -80,10 +112,12 @@ public class RunController : ControllerBase
         }
         catch (ArgumentOutOfRangeException ex)
         {
+            _logger.LogWarning(ex, "Run request validation failed.");
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Run request failed because the simulation configuration is invalid.");
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -93,6 +127,17 @@ public class RunController : ControllerBase
     {
         var solver = new ExplicitHeatSolver();
         SimulationConfig config = BuildSimulationConfig(request);
+
+        _logger.LogInformation(
+            "Starting compare run: width={Width}, height={Height}, h={H}, dt={Dt}, totalTime={TotalTime}, alpha={Alpha}, initialPoints={InitialPoints}, maxDegree={MaxDegreeOfParallelism}",
+            request.Width,
+            request.Height,
+            request.H,
+            request.Dt,
+            request.TotalTime,
+            request.Alpha,
+            request.InitialPoints.Count,
+            request.MaxDegreeOfParallelism);
 
         try
         {
@@ -117,6 +162,20 @@ public class RunController : ControllerBase
             double parMs = parWatch.Elapsed.TotalMilliseconds;
             double speedup = parMs > 0 ? seqMs / parMs : 0.0;
             double efficiency = usedThreads > 0 ? speedup / usedThreads : 0.0;
+            double maxAbsoluteDifference = GetMaxAbsoluteDifference(sequential.FinalField, parallel.FinalField);
+
+            _logger.LogInformation(
+                "Compare completed: grid={Nx}x{Ny}, steps={Steps}, usedThreads={UsedThreads}, sequentialMs={SequentialElapsedMilliseconds:0.000}, parallelMs={ParallelElapsedMilliseconds:0.000}, speedup={Speedup:0.000}, efficiency={Efficiency:0.000}, maxDiff={MaxAbsoluteDifference:0.000000}, png={OutputPath}",
+                parallel.Nx,
+                parallel.Ny,
+                parallel.Steps,
+                usedThreads,
+                seqMs,
+                parMs,
+                speedup,
+                efficiency,
+                maxAbsoluteDifference,
+                outputPath);
 
             return Ok(new CompareRunResponse
             {
@@ -130,16 +189,18 @@ public class RunController : ControllerBase
                 ParallelElapsedMilliseconds = parMs,
                 Speedup = speedup,
                 Efficiency = efficiency,
-                MaxAbsoluteDifference = GetMaxAbsoluteDifference(sequential.FinalField, parallel.FinalField),
+                MaxAbsoluteDifference = maxAbsoluteDifference,
                 FinalField = parallel.FinalField
             });
         }
         catch (ArgumentOutOfRangeException ex)
         {
+            _logger.LogWarning(ex, "Compare request validation failed.");
             return BadRequest(new { error = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Compare request failed because the simulation configuration is invalid.");
             return BadRequest(new { error = ex.Message });
         }
     }

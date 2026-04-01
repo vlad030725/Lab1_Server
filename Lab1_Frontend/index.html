@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Моделирование нагрева</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app-config.js"></script>
+    <script src="./app.js" defer></script>
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Parallel Data Processing</p>
+                <h1>Моделирование нагрева пластины</h1>
+                <p class="hero-text">
+                    Укажите параметры расчёта, выберите режим вычислений
+                    и получите графическое представление итогового распределения температуры.
+                </p>
+            </div>
+            <div class="hero-meta">
+                <span class="meta-label">Backend URL</span>
+                <code id="backend-url-value">auto</code>
+            </div>
+        </header>
+
+        <main class="layout">
+            <section class="panel control-panel">
+                <form id="simulation-form" class="control-form">
+                    <section class="card">
+                        <div class="card-head">
+                            <h2>Параметры расчёта</h2>
+                            <p>Геометрия пластины и численные параметры схемы.</p>
+                        </div>
+
+                        <div class="field-grid">
+                            <label class="field">
+                                <span>Ширина</span>
+                                <input type="number" name="width" min="0.01" step="0.01" value="1">
+                            </label>
+                            <label class="field">
+                                <span>Высота</span>
+                                <input type="number" name="height" min="0.01" step="0.01" value="1">
+                            </label>
+                            <label class="field">
+                                <span>Шаг сетки h</span>
+                                <input type="number" name="h" min="0.001" step="0.001" value="0.01">
+                            </label>
+                            <label class="field">
+                                <span>Шаг по времени dt</span>
+                                <input type="number" name="dt" min="0.000001" step="0.000001" value="0.00005">
+                            </label>
+                            <label class="field">
+                                <span>Время моделирования</span>
+                                <input type="number" name="totalTime" min="0.01" step="0.01" value="0.2">
+                            </label>
+                            <label class="field">
+                                <span>Коэффициент alpha</span>
+                                <input type="number" name="alpha" min="0.01" step="0.01" value="0.5">
+                            </label>
+                            <label class="field">
+                                <span>Начальная температура</span>
+                                <input type="number" name="initialTemperature" step="0.1" value="20">
+                            </label>
+                        </div>
+
+                        <div id="derived-summary" class="hint-panel"></div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-head">
+                            <h2>Режим выполнения</h2>
+                            <p>Доступны последовательный и параллельный режимы вычислений.</p>
+                        </div>
+
+                        <div class="mode-picker">
+                            <label class="mode-option">
+                                <input type="radio" name="executionMode" value="sequential">
+                                <span>
+                                    <strong>Последовательный</strong>
+                                    <small>Один поток, удобно для проверки результатов.</small>
+                                </span>
+                            </label>
+                            <label class="mode-option">
+                                <input type="radio" name="executionMode" value="parallel" checked>
+                                <span>
+                                    <strong>Параллельный</strong>
+                                    <small>Использует несколько потоков для ускорения расчёта.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <label class="field threads-field" id="threads-field">
+                            <span>Максимальное число потоков</span>
+                            <input type="number" name="maxDegreeOfParallelism" min="1" step="1" value="8">
+                        </label>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-head">
+                            <h2>Граничные условия</h2>
+                            <p>Поддерживаются условия Дирихле, Неймана и Робина.</p>
+                        </div>
+
+                        <div class="boundary-grid">
+                            <article class="boundary-card">
+                                <h3>G1: левая</h3>
+                                <label class="field">
+                                    <span>Тип условия</span>
+                                    <select name="g1_Left.kind" class="boundary-kind">
+                                        <option value="1">Дирихле</option>
+                                        <option value="2" selected>Нейман</option>
+                                        <option value="3">Робин</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span class="boundary-value1-label">dT/dn</span>
+                                    <input type="number" name="g1_Left.value1" step="0.1" value="0">
+                                </label>
+                                <label class="field boundary-value2-field is-hidden">
+                                    <span class="boundary-value2-label">Tenv</span>
+                                    <input type="number" name="g1_Left.value2" step="0.1" value="0">
+                                </label>
+                            </article>
+
+                            <article class="boundary-card">
+                                <h3>G2: правая</h3>
+                                <label class="field">
+                                    <span>Тип условия</span>
+                                    <select name="g2_Right.kind" class="boundary-kind">
+                                        <option value="1">Дирихле</option>
+                                        <option value="2" selected>Нейман</option>
+                                        <option value="3">Робин</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span class="boundary-value1-label">dT/dn</span>
+                                    <input type="number" name="g2_Right.value1" step="0.1" value="0">
+                                </label>
+                                <label class="field boundary-value2-field is-hidden">
+                                    <span class="boundary-value2-label">Tenv</span>
+                                    <input type="number" name="g2_Right.value2" step="0.1" value="0">
+                                </label>
+                            </article>
+
+                            <article class="boundary-card">
+                                <h3>G3: нижняя</h3>
+                                <label class="field">
+                                    <span>Тип условия</span>
+                                    <select name="g3_Bottom.kind" class="boundary-kind">
+                                        <option value="1" selected>Дирихле</option>
+                                        <option value="2">Нейман</option>
+                                        <option value="3">Робин</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span class="boundary-value1-label">Температура T</span>
+                                    <input type="number" name="g3_Bottom.value1" step="0.1" value="1000">
+                                </label>
+                                <label class="field boundary-value2-field is-hidden">
+                                    <span class="boundary-value2-label">Tenv</span>
+                                    <input type="number" name="g3_Bottom.value2" step="0.1" value="0">
+                                </label>
+                            </article>
+
+                            <article class="boundary-card">
+                                <h3>G4: верхняя</h3>
+                                <label class="field">
+                                    <span>Тип условия</span>
+                                    <select name="g4_Top.kind" class="boundary-kind">
+                                        <option value="1" selected>Дирихле</option>
+                                        <option value="2">Нейман</option>
+                                        <option value="3">Робин</option>
+                                    </select>
+                                </label>
+                                <label class="field">
+                                    <span class="boundary-value1-label">Температура T</span>
+                                    <input type="number" name="g4_Top.value1" step="0.1" value="1000">
+                                </label>
+                                <label class="field boundary-value2-field is-hidden">
+                                    <span class="boundary-value2-label">Tenv</span>
+                                    <input type="number" name="g4_Top.value2" step="0.1" value="0">
+                                </label>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="card">
+                        <div class="card-head">
+                            <h2>Точечные начальные условия</h2>
+                            <p>Можно задать отдельные узлы сетки с собственной температурой.</p>
+                        </div>
+
+                        <div id="initial-points" class="points-list"></div>
+                        <div class="points-actions">
+                            <button type="button" id="add-point-button" class="secondary-button">Добавить точку</button>
+                            <span id="points-hint" class="subtle-text">Индексы i и j задаются в узлах сетки.</span>
+                        </div>
+                    </section>
+
+                    <div class="form-actions">
+                        <button type="submit" id="submit-button" class="primary-button">Выполнить расчёт</button>
+                        <span id="status-text" class="status-text">Ожидание запуска</span>
+                    </div>
+                </form>
+            </section>
+
+            <section class="panel result-panel">
+                <div class="result-top">
+                    <div>
+                        <p class="eyebrow">Результат</p>
+                        <h2>Тепловая карта</h2>
+                    </div>
+                    <span id="result-badge" class="result-badge idle">Нет данных</span>
+                </div>
+
+                <div id="error-box" class="error-box is-hidden"></div>
+
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <span>Сетка</span>
+                        <strong id="stat-grid">-</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span>Шаги</span>
+                        <strong id="stat-steps">-</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span>Время</span>
+                        <strong id="stat-elapsed">-</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span>Потоки</span>
+                        <strong id="stat-threads">-</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span>Минимум</span>
+                        <strong id="stat-min">-</strong>
+                    </article>
+                    <article class="stat-card">
+                        <span>Максимум</span>
+                        <strong id="stat-max">-</strong>
+                    </article>
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="heatmap-canvas" width="640" height="640"></canvas>
+                </div>
+
+                <div class="legend-wrap">
+                    <canvas id="legend-canvas" width="256" height="18"></canvas>
+                    <div class="legend-labels">
+                        <span id="legend-min">-</span>
+                        <span id="legend-mid">-</span>
+                        <span id="legend-max">-</span>
+                    </div>
+                </div>
+
+                <p id="result-summary" class="subtle-text">
+                    После запуска здесь появится графическое представление распределения температуры.
+                </p>
+            </section>
+        </main>
+    </div>
+
+    <template id="point-row-template">
+        <div class="point-row">
+            <label class="field compact-field">
+                <span>i</span>
+                <input type="number" name="point-i" min="0" step="1" value="90">
+            </label>
+            <label class="field compact-field">
+                <span>j</span>
+                <input type="number" name="point-j" min="0" step="1" value="90">
+            </label>
+            <label class="field compact-field">
+                <span>T</span>
+                <input type="number" name="point-temperature" step="0.1" value="1000">
+            </label>
+            <button type="button" class="ghost-button remove-point-button">Удалить</button>
+        </div>
+    </template>
+</body>
+</html>
