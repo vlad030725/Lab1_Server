@@ -33,5 +33,7 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("FrontendClient");
 app.UseAuthorization();
+app.MapGet("/api/health/live", () => Results.Ok(new { status = "Live" }));
+app.MapGet("/api/health/ready", () => Results.Ok(new { status = "Ready" }));
 app.MapControllers();
 app.Run();

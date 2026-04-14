@@ -14,12 +14,33 @@ spec:
     spec:
       containers:
         - name: backend
-          image: student-backend:1.0
+          image: student-backend:2.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-          env:
-            - name: CALC_MODE
-              value: "sum"
-            - name: ASPNETCORE_HTTP_PORTS
-              value: "8080"
+
+          envFrom:
+            - configMapRef:
+                name: backend-config
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
